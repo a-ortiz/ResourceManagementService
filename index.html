@@ -1,0 +1,242 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Routing mechanism</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+    <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="http://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCKMiQrSWOFgCnlQXK5m7xGg8dJBFqw3QE&libraries=places"></script>
+    <script src="./build/index.js"></script>
+    <link rel="stylesheet" href="./main.css"/>
+  </head>
+  <body>
+    <header id="mky-header-form">
+      <input id="mky-pickup-place-input" placeholder="Pickup address" autocomplete>
+      <input type="text" id="mky-pickup-datepicker" placeholder="Pickup date">
+      <input id="mky-delivery-place-input" placeholder="Delivery address" autocomplete>
+      <input type="text" id="mky-delivery-datepicker" placeholder="Delivery date">
+      <input type="button" value="Create task" onclick="_createTask()">
+      <input type="button" value="Generate Routes" onclick="_generateRoutes()">
+    </header>
+    <aside>
+      <header id="mky-session-header">
+        <div id="mky-session-image">
+          <img src="http://cdn.criptext.com/MonkeyUI/images/userdefault.png">
+        </div>
+        <div id="mky-session-description">
+          <span id="mky-session-name">Eka</span>
+        </div>
+      </header>
+      <div class="mky-session-conversations">
+        <ul id="mky-conversation-list">
+          <li class="mky-conversation-unselected animated slideInLeft">
+            <div class="mky-full">
+              <div class="mky-conversation-image">
+                <img src="http://cdn.criptext.com/MonkeyUI/images/userdefault.png">
+              </div>
+              <div class="mky-conversation-description">
+                <div class="mky-conversation-title">
+                  <div class="mky-conversation-name">
+                    <span class="mky-ellipsify">Task 1</span>
+                  </div>
+                  <div class="mky-conversation-time">
+                    <span class="">21:54 PM</span>
+                  </div>
+                </div>
+                <div class="mky-conversation-state">
+                  <span class="mky-ellipsify">Description</span>
+                </div>
+              </div>
+            </div>
+            <div class="mky-delete-convv"></div>
+            <div class="mky-conversation-notification"></div>
+          </li>
+          <li class="mky-conversation-unselected animated slideInLeft">
+            <div class="mky-full">
+              <div class="mky-conversation-image">
+                <img src="http://cdn.criptext.com/MonkeyUI/images/userdefault.png">
+              </div>
+              <div class="mky-conversation-description">
+                <div class="mky-conversation-title">
+                  <div class="mky-conversation-name">
+                    <span class="mky-ellipsify">Task 2</span>
+                  </div>
+                  <div class="mky-conversation-time">
+                    <span class="">21:00 PM</span>
+                  </div>
+                </div>
+                <div class="mky-conversation-state">
+                  <span class="mky-ellipsify">Description</span>
+                </div>
+              </div>
+            </div>
+            <div class="mky-delete-convv"></div>
+            <div class="mky-conversation-notification"></div>
+          </li>
+        </ul>
+      </div>
+    </aside>
+    <div id="map"></div>
+    <script>
+    var map;
+    var pickUpMarker;
+    var deliveryMarker;
+    var tasks = [];
+    (function initMap() {
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: {lat: -34.397, lng: 150.644},
+        zoom: 8
+      });
+
+      pickUpMarker = new google.maps.Marker({
+        map: map,
+        anchorPoint: new google.maps.Point(0, -29)
+      });
+
+      var pickupPlaceInput = document.getElementById('mky-pickup-place-input');
+      var autocompletePickupPlaceInput = new google.maps.places.Autocomplete(pickupPlaceInput);
+      autocompletePickupPlaceInput.bindTo('bounds', map);
+      google.maps.event.addListener(autocompletePickupPlaceInput, 'place_changed', function() {
+        pickUpMarker.setVisible(false);
+        var place = autocompletePickupPlaceInput.getPlace();
+        if (!place.geometry) {
+          window.alert("Autocomplete's returned place contains no geometry");
+          return;
+        }
+
+        // If the place has a geometry, then present it on a map.
+        if (place.geometry.viewport) {
+          map.fitBounds(place.geometry.viewport);
+        } else {
+          map.setCenter(place.geometry.location);
+          map.setZoom(17);  // Why 17? Because it looks good.
+        }
+        pickUpMarker.setIcon(/** @type {google.maps.Icon} */({
+          url: place.icon,
+          size: new google.maps.Size(71, 71),
+          origin: new google.maps.Point(0, 0),
+          anchor: new google.maps.Point(17, 34),
+          scaledSize: new google.maps.Size(35, 35)
+        }));
+        pickUpMarker.setPosition(place.geometry.location);
+        pickUpMarker.setVisible(true);
+      }, 0);
+
+      deliveryMarker = new google.maps.Marker({
+        map: map,
+        anchorPoint: new google.maps.Point(0, -29)
+      });
+
+      var deliveryPlaceInput = document.getElementById('mky-delivery-place-input');
+      var autocompleteDeliveryPlaceInput = new google.maps.places.Autocomplete(deliveryPlaceInput);
+      autocompleteDeliveryPlaceInput.bindTo('bounds', map);
+      google.maps.event.addListener(autocompleteDeliveryPlaceInput, 'place_changed', function() {
+        deliveryMarker.setVisible(false);
+        var place = autocompleteDeliveryPlaceInput.getPlace();
+        if (!place.geometry) {
+          window.alert("Autocomplete's returned place contains no geometry");
+          return;
+        }
+
+        // If the place has a geometry, then present it on a map.
+        if (place.geometry.viewport) {
+          map.fitBounds(place.geometry.viewport);
+        } else {
+          map.setCenter(place.geometry.location);
+          map.setZoom(17);  // Why 17? Because it looks good.
+        }
+        deliveryMarker.setIcon(/** @type {google.maps.Icon} */({
+          url: place.icon,
+          size: new google.maps.Size(71, 71),
+          origin: new google.maps.Point(0, 0),
+          anchor: new google.maps.Point(17, 34),
+          scaledSize: new google.maps.Size(35, 35)
+        }));
+        deliveryMarker.setPosition(place.geometry.location);
+        deliveryMarker.setVisible(true);
+      }, 0);
+    })();
+    $(function() {
+      $( "#mky-pickup-datepicker" ).datepicker();
+      $( "#mky-delivery-datepicker" ).datepicker();
+    });
+
+    function _createTask() {
+
+      var pickup = {
+        geoPoint: {
+          latitude: pickUpMarker.getPosition().lat(),
+          longitude: pickUpMarker.getPosition().lng()
+        },
+        date: $( "#mky-pickup-datepicker" ).datepicker( "getDate" )
+      };
+
+      var delivery = {
+        geoPoint: {
+          latitude: deliveryMarker.getPosition().lat(),
+          longitude: deliveryMarker.getPosition().lng()
+        },
+        date: $( "#mky-delivery-datepicker" ).datepicker( "getDate" )
+      };
+      tasks.push(createTask({ pickup: pickup, delivery: delivery }));
+      document.getElementById('mky-conversation-list').innerHTML = tasks.map(t => `
+        <li class="mky-conversation-unselected animated slideInLeft">
+          <div class="mky-full">
+            <div class="mky-conversation-image">
+              <img src="http://cdn.criptext.com/MonkeyUI/images/userdefault.png">
+            </div>
+            <div class="mky-conversation-description">
+              <div class="mky-conversation-title">
+                <div class="mky-conversation-name">
+                  <span class="mky-ellipsify">${t.id}</span>
+                </div>
+                <div class="mky-conversation-time">
+                  <span class="">${t.pickup.date} - ${t.delivery.date}</span>
+                </div>
+              </div>
+              <div class="mky-conversation-state">
+                <span class="mky-ellipsify"></span>
+              </div>
+            </div>
+          </div>
+          <div class="mky-delete-convv"></div>
+          <div class="mky-conversation-notification"></div>
+        </li>
+        `).join('');
+    }
+    var labels = '*ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    var markers = [];
+    function _generateRoutes() {
+      console.log('gen');
+      pickUpMarker.setVisible(false);
+      deliveryMarker.setVisible(false);
+      try {
+        console.log('rout')
+        generateRoutesFromTasks(tasks, function (error, routes) {
+          console.log(error)
+          console.log(routes);
+          const locations = routes[0].steps.map(function (step, index) {
+            if (index == 0) {
+              return step.task.pickup.place.geoPoint;
+            }
+            return step.task.delivery.place.geoPoint;
+          })
+          console.log(locations);
+          locations.forEach(function (l, labelIndex) {
+            var marker = new google.maps.Marker({
+              position: {lat: l.latitude, lng: l.longitude},
+              label: labels[labelIndex++ % labels.length],
+              map: map
+            });
+          });
+        });
+      } catch (error) {
+        console.log(error);
+      }
+
+    }
+    </script>
+  </body>
+</html>
